@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speech API Demo</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1c1f24; --muted: #6b7280; --line: #e3e6ea;
+    --accent: #2563eb; --accent-text: #ffffff; --danger: #dc2626; --ok: #16a34a; --warn: #d97706;
+    --input: #ffffff; --code: #f1f3f5; --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --card: #171a21; --text: #e6e8eb; --muted: #9aa3ae; --line: #2a2f39;
+      --accent: #3b82f6; --input: #0f1218; --code: #11141a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--card);
+    position: sticky; top: 0; z-index: 2;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+  .conn { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--danger); }
+  main { max-width: 820px; margin: 0 auto; padding: 18px 16px 40px; }
+  nav.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+  nav.tabs button {
+    background: none; border: none; color: var(--muted); font: inherit; font-weight: 600;
+    padding: 10px 14px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  nav.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+  section.panel { display: none; }
+  section.panel.active { display: block; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 12px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 5px; }
+  label:first-child { margin-top: 0; }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  input[type=text], input[type=url], input[type=password], select, textarea {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--input); color: var(--text); font: inherit;
+  }
+  textarea { min-height: 120px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 160px; }
+  .inline { display: flex; gap: 8px; align-items: center; }
+  .inline input, .inline select { flex: 1; min-width: 0; }
+  select:disabled { opacity: .55; }
+  .btn {
+    font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--text);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+  .check { display: flex; gap: 8px; align-items: center; font-weight: 500; font-size: 14px; margin-top: 12px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: none; background: var(--card); color: var(--muted); padding: 8px 14px; font: inherit; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+  .status { font-size: 13.5px; margin-top: 10px; min-height: 20px; color: var(--muted); }
+  .status.error { color: var(--danger); } .status.ok { color: var(--ok); }
+  audio { width: 100%; margin-top: 12px; }
+  .meta { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .rec-wrap { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .rec-btn {
+    width: 74px; height: 74px; border-radius: 50%; border: none; cursor: pointer;
+    background: var(--danger); color: #fff; font: 600 13px/1 inherit; flex: none;
+    box-shadow: 0 0 0 0 rgba(220,38,38,.5); transition: transform .1s;
+  }
+  .rec-btn.recording { animation: pulse 1.2s infinite; border-radius: 22px; }
+  .rec-btn:disabled { opacity: .5; cursor: not-allowed; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(220,38,38,.55); } 70% { box-shadow: 0 0 0 16px rgba(220,38,38,0); } 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } }
+  .meter { flex: 1 1 200px; }
+  .meter-bar { height: 8px; background: var(--code); border-radius: 4px; overflow: hidden; }
+  .meter-fill { height: 100%; width: 0; background: var(--ok); transition: width .08s linear; }
+  .timer { font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+  .drop {
+    border: 2px dashed var(--line); border-radius: var(--radius); padding: 22px; text-align: center;
+    color: var(--muted); cursor: pointer; margin-top: 4px;
+  }
+  .drop.over { border-color: var(--accent); color: var(--accent); }
+  .or { text-align: center; color: var(--muted); font-size: 12px; margin: 14px 0; text-transform: uppercase; letter-spacing: .08em; }
+  .clip {
+    display: none; margin-top: 14px; padding: 12px; border-radius: 8px; background: var(--code);
+    border: 1px solid var(--line);
+  }
+  .clip.show { display: block; }
+  .clip-name { font-weight: 600; font-size: 14px; }
+  .result {
+    white-space: pre-wrap; word-wrap: break-word; padding: 14px; border-radius: 8px;
+    background: var(--code); border: 1px solid var(--line); min-height: 60px; font-size: 16px;
+  }
+  .result.empty { color: var(--muted); font-style: italic; font-size: 14px; }
+  pre.code {
+    background: var(--code); border: 1px solid var(--line); border-radius: 8px; padding: 12px;
+    font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-x: auto; margin: 8px 0 0;
+    white-space: pre-wrap; word-break: break-all;
+  }
+  details summary { cursor: pointer; font-size: 13px; color: var(--muted); margin-top: 12px; }
+  table.log { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.log th, table.log td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.log th { color: var(--muted); font-weight: 600; }
+  table.log td.s2 { color: var(--ok); } table.log td.s4, table.log td.s5, table.log td.s0 { color: var(--danger); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Speech API Demo</h1>
+  <div class="conn"><span class="dot" id="connDot"></span><span id="connText">Not checked</span></div>
+</header>
+
+<main>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="tts" aria-selected="true">Text to Speech</button>
+    <button role="tab" data-tab="stt" aria-selected="false">Speech to Text</button>
+    <button role="tab" data-tab="settings" aria-selected="false">Settings</button>
+    <button role="tab" data-tab="log" aria-selected="false">Log</button>
+  </nav>
+
+  <!-- ============ TEXT TO SPEECH ============ -->
+  <section class="panel active" id="panel-tts">
+    <div class="card">
+      <h2>POST /speech</h2>
+      <label for="ttsText">Text</label>
+      <textarea id="ttsText" maxlength="4000" placeholder="Type something to hear it spoken...">Hello! This is the speech API, turning text into audio.</textarea>
+      <div class="hint"><span id="ttsCount">0</span> / 4000 characters &middot; Ctrl/⌘ + Enter to speak</div>
+      <div class="row">
+        <div style="flex-basis:100%">
+          <label for="ttsVoiceSel">Voice</label>
+          <div class="inline">
+            <select id="ttsVoiceSel"></select>
+            <button class="btn" id="ttsSample" type="button" title="Put a test sentence in this voice's language into the text box">Sample text</button>
+          </div>
+          <input type="text" id="ttsVoice" placeholder="voice ID, e.g. voice_478 or your cloned voice's ID" style="display:none;margin-top:8px">
+          <div class="hint" id="ttsVoiceHint"></div>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="ttsEmotion">Emotion</label>
+          <select id="ttsEmotion"></select>
+        </div>
+        <div>
+          <label for="ttsPace">Pace</label>
+          <select id="ttsPace"></select>
+        </div>
+        <div>
+          <label>Format</label>
+          <div class="seg" id="ttsFormat">
+            <button type="button" data-v="mp3" aria-pressed="true">MP3</button>
+            <button type="button" data-v="wav" aria-pressed="false">WAV</button>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="ttsGo">Speak</button>
+        <a class="btn" id="ttsDownload" style="display:none;text-decoration:none" download>Download</a>
+      </div>
+      <div class="status" id="ttsStatus"></div>
+      <audio id="ttsAudio" controls style="display:none"></audio>
+      <details><summary>Equivalent curl</summary><pre class="code" id="ttsCurl"></pre></details>
+    </div>
+  </section>
+
+  <!-- ============ SPEECH TO TEXT ============ -->
+  <section class="panel" id="panel-stt">
+    <div class="card">
+      <h2>1. Record or choose audio</h2>
+      <div class="hint" style="margin:-4px 0 14px">Microphone: <strong id="micNow">Browser default</strong> &middot; <a href="#" id="micChange">change in Settings</a></div>
+      <div class="rec-wrap">
+        <button class="rec-btn" id="recBtn">Record</button>
+        <div class="meter">
+          <div class="timer" id="recTimer">0:00</div>
+          <div class="meter-bar"><div class="meter-fill" id="recLevel"></div></div>
+          <div class="hint">Records 16 kHz mono WAV in the browser (max 60 s). Click again to stop.</div>
+        </div>
+      </div>
+      <div class="or">or</div>
+      <div class="drop" id="drop">
+        Drop an <strong>MP3</strong> or <strong>WAV</strong> file here, or click to choose
+        <input type="file" id="fileInput" accept=".mp3,.wav,audio/mpeg,audio/wav,audio/x-wav" hidden>
+      </div>
+      <div class="clip" id="clip">
+        <div class="clip-name" id="clipName"></div>
+        <div class="meta" id="clipMeta"></div>
+        <audio id="clipAudio" controls></audio>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2. POST /transcribe</h2>
+      <div class="row">
+        <div>
+          <label for="sttLang">Spoken language</label>
+          <select id="sttLang">
+            <option value="">Auto-detect</option>
+            <option value="en">English (en)</option><option value="es">Spanish (es)</option>
+            <option value="fr">French (fr)</option><option value="de">German (de)</option>
+            <option value="it">Italian (it)</option><option value="pt">Portuguese (pt)</option>
+            <option value="nl">Dutch (nl)</option><option value="hi">Hindi (hi)</option>
+            <option value="ar">Arabic (ar)</option><option value="ru">Russian (ru)</option>
+            <option value="zh">Chinese (zh)</option><option value="ja">Japanese (ja)</option>
+            <option value="ko">Korean (ko)</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="sttGo" disabled>Transcribe</button>
+        <button class="btn" id="sttCopy" disabled>Copy text</button>
+      </div>
+      <div class="status" id="sttStatus"></div>
+      <label>Transcript</label>
+      <div class="result empty" id="sttResult">The text will appear here.</div>
+      <div class="meta" id="sttMeta"></div>
+      <details><summary>Equivalent curl</summary><pre class="code" id="sttCurl"></pre></details>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section class="panel" id="panel-settings">
+    <div class="card">
+      <h2>Server</h2>
+      <label for="setUrl">Base API URL</label>
+      <input type="url" id="setUrl" placeholder="http://localhost:8080">
+      <div class="hint">No trailing path: the app adds <span class="mono">/speech</span>, <span class="mono">/transcribe</span> and <span class="mono">/health</span>.</div>
+
+      <label for="setKey">API key (x-api-key)</label>
+      <div class="inline">
+        <input type="password" id="setKey" autocomplete="off" placeholder="your-api-key">
+        <button class="btn" id="keyToggle" type="button">Show</button>
+      </div>
+      <label class="check"><input type="checkbox" id="setRemember" checked> Remember the API key in this browser</label>
+      <div class="hint">Saved in this browser's local storage only. Untick on a shared computer: the key is then kept only until you close the tab.</div>
+
+      <div class="actions">
+        <button class="btn primary" id="setSave">Save</button>
+        <button class="btn" id="setTest">Test connection</button>
+      </div>
+      <div class="status" id="setStatus"></div>
+    </div>
+    <div class="card">
+      <h2>Microphone</h2>
+      <label for="micSel">Record from</label>
+      <div class="inline">
+        <select id="micSel"><option value="">Browser default</option></select>
+        <button class="btn" id="micRefresh" type="button" title="Ask for microphone access and list the microphones">List mics</button>
+      </div>
+      <div class="hint">Chrome keeps its own default microphone, separate from macOS's Sound &gt; Input. Virtual devices
+        (BlackHole, Loopback, Teams, Zoom, OBS...) record silence unless an app sends audio into them.</div>
+      <div class="actions">
+        <button class="btn" id="micTest" type="button">Test (3 s)</button>
+        <div class="meter" style="flex:1 1 160px"><div class="meter-bar"><div class="meter-fill" id="micTestLevel"></div></div></div>
+      </div>
+      <div class="status" id="micStatus"></div>
+    </div>
+    <div class="card">
+      <h2>Notes</h2>
+      <div class="hint" style="font-size:13.5px">
+        &bull; The API must allow CORS from this page's origin, including the <span class="mono">x-api-key</span> and <span class="mono">Content-Type</span> request headers.<br>
+        &bull; The microphone needs <span class="mono">https://</span> or <span class="mono">http://localhost</span>. Serve this file with <span class="mono">python3 -m http.server 8000</span> and open <span class="mono">http://localhost:8000/speech-api-demo.html</span>.<br>
+        &bull; A page on <span class="mono">https://</span> can't call an <span class="mono">http://</span> API (mixed content).
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LOG ============ -->
+  <section class="panel" id="panel-log">
+    <div class="card">
+      <h2>Requests</h2>
+      <table class="log">
+        <thead><tr><th>Time</th><th>Request</th><th>Status</th><th>ms</th><th>Details</th></tr></thead>
+        <tbody id="logBody"><tr><td colspan="5" class="hint">No requests yet.</td></tr></tbody>
+      </table>
+      <div class="actions"><button class="btn" id="logClear">Clear</button></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const PREFIX = 'speechApiDemo.';
+
+  // ---------- storage (wrapped: may be unavailable) ----------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(PREFIX + k); return v === null ? d : v; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(PREFIX + k, v); } catch {} },
+    del(k) { try { localStorage.removeItem(PREFIX + k); } catch {} },
+  };
+  const session = {
+    get(k, d) { try { const v = sessionStorage.getItem(PREFIX + k); return v === null ? d : v; } catch { return d; } },
+    set(k, v) { try { sessionStorage.setItem(PREFIX + k, v); } catch {} },
+    del(k) { try { sessionStorage.removeItem(PREFIX + k); } catch {} },
+  };
+
+  const settings = {
+    baseUrl: store.get('baseUrl', 'http://localhost:8080'),
+    apiKey: store.get('apiKey', null) ?? session.get('apiKey', ''),
+    remember: store.get('remember', '1') === '1',
+  };
+
+  // ---------- helpers ----------
+  const apiUrl = (path) => settings.baseUrl.trim().replace(/\/+$/, '') + path;
+  const authHeaders = () => (settings.apiKey ? { 'x-api-key': settings.apiKey } : {});
+  const fmtBytes = (n) => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(2) + ' MB';
+  const fmtTime = (s) => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+  const shq = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
+
+  function setStatus(el, msg, kind) {
+    el.textContent = msg || '';
+    el.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function needConfig() {
+    if (!/^https?:\/\//i.test(settings.baseUrl.trim())) return 'Set the base API URL in Settings first.';
+    return null;
+  }
+
+  async function apiError(res) {
+    let msg = 'HTTP ' + res.status + (res.statusText ? ' ' + res.statusText : '');
+    try {
+      const j = await res.clone().json();
+      if (j && j.error && j.error.message) msg += ': ' + j.error.message + (j.error.code ? ' (' + j.error.code + ')' : '');
+    } catch {
+      try { const t = (await res.text()).trim(); if (t) msg += ': ' + t.slice(0, 200); } catch {}
+    }
+    const e = new Error(msg); e.status = res.status; return e;
+  }
+
+  function networkMessage(err) {
+    if (err && err.status !== undefined) return err.message;
+    return 'Network error: ' + (err && err.message ? err.message : err) +
+      '. Check the URL, that the server is running, and that it allows CORS from this page.';
+  }
+
+  // ---------- request log ----------
+  const log = [];
+  function addLog(entry) {
+    log.unshift(entry); if (log.length > 30) log.pop();
+    const body = $('#logBody');
+    body.innerHTML = '';
+    for (const e of log) {
+      const tr = document.createElement('tr');
+      const cls = 's' + String(e.status || 0)[0];
+      [e.time, e.method + ' ' + e.path, e.status || 'ERR', e.ms, e.detail].forEach((v, i) => {
+        const td = document.createElement('td');
+        td.textContent = v;
+        if (i === 1) td.className = 'mono';
+        if (i === 2) td.className = cls;
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    }
+  }
+
+  async function call(method, path, opts, detail) {
+    const t0 = performance.now();
+    const entry = { time: new Date().toLocaleTimeString(), method, path, status: 0, ms: 0, detail: detail || '' };
+    try {
+      const res = await fetch(apiUrl(path), { method, ...opts, headers: { ...authHeaders(), ...(opts && opts.headers) } });
+      entry.status = res.status;
+      entry.ms = Math.round(performance.now() - t0);
+      addLog(entry);
+      return res;
+    } catch (err) {
+      entry.ms = Math.round(performance.now() - t0);
+      entry.detail = (detail ? detail + ' · ' : '') + (err.message || 'network error');
+      addLog(entry);
+      throw err;
+    }
+  }
+
+  // ---------- tabs ----------
+  document.querySelectorAll('nav.tabs button').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('nav.tabs button').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+      document.querySelectorAll('section.panel').forEach((p) => p.classList.toggle('active', p.id === 'panel-' + b.dataset.tab));
+      store.set('tab', b.dataset.tab);
+    });
+  });
+
+  // ---------- segmented controls ----------
+  function seg(el, initial, onChange) {
+    let value = initial;
+    const btns = el.querySelectorAll('button');
+    const paint = () => btns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === value)));
+    btns.forEach((b) => b.addEventListener('click', () => { value = b.dataset.v; paint(); onChange && onChange(value); }));
+    paint();
+    return { get value() { return value; } };
+  }
+
+  // ---------- settings ----------
+  $('#setUrl').value = settings.baseUrl;
+  $('#setKey').value = settings.apiKey;
+  $('#setRemember').checked = settings.remember;
+
+  $('#keyToggle').addEventListener('click', () => {
+    const k = $('#setKey');
+    k.type = k.type === 'password' ? 'text' : 'password';
+    $('#keyToggle').textContent = k.type === 'password' ? 'Show' : 'Hide';
+  });
+
+  function saveSettings() {
+    settings.baseUrl = $('#setUrl').value.trim();
+    settings.apiKey = $('#setKey').value.trim();
+    settings.remember = $('#setRemember').checked;
+    store.set('baseUrl', settings.baseUrl);
+    store.set('remember', settings.remember ? '1' : '0');
+    if (settings.remember) { store.set('apiKey', settings.apiKey); session.del('apiKey'); }
+    else { store.del('apiKey'); session.set('apiKey', settings.apiKey); }
+    updateCurls();
+  }
+
+  $('#setSave').addEventListener('click', () => {
+    saveSettings();
+    setStatus($('#setStatus'), 'Saved.', 'ok');
+  });
+
+  async function testConnection() {
+    saveSettings();
+    const st = $('#setStatus');
+    const bad = needConfig();
+    if (bad) { setStatus(st, bad, 'error'); setConn(false, 'Not configured'); return; }
+    setStatus(st, 'Checking ' + apiUrl('/health') + ' ...');
+    try {
+      const res = await call('GET', '/health', {}, 'health check');
+      if (!res.ok) throw await apiError(res);
+      let info = '';
+      try { const j = await res.json(); info = (j.status || 'ok') + (j.version ? ', version ' + j.version : ''); } catch { info = 'ok'; }
+      setStatus(st, 'Server reachable: ' + info + '. (The API key is checked on the first real request.)', 'ok');
+      setConn(true, 'Connected');
+    } catch (err) {
+      setStatus(st, networkMessage(err), 'error');
+      setConn(false, 'Unreachable');
+    }
+  }
+  $('#setTest').addEventListener('click', testConnection);
+
+  function setConn(ok, text) {
+    $('#connDot').className = 'dot ' + (ok ? 'ok' : 'bad');
+    $('#connText').textContent = text;
+  }
+
+  // ---------- TEXT TO SPEECH ----------
+  const ttsFormat = seg($('#ttsFormat'), store.get('ttsFormat', 'mp3'), (v) => { store.set('ttsFormat', v); updateCurls(); });
+  const ttsText = $('#ttsText');
+  const updateCount = () => { $('#ttsCount').textContent = ttsText.value.length; };
+  ttsText.addEventListener('input', () => { updateCount(); updateCurls(); });
+  ttsText.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); speak(); } });
+  updateCount();
+
+  // ---------- voices ----------
+  // Voxtral 3 voices (model voxtral-mini-tts-3): one ID per speaker, emotion/pace via inline tags.
+  const V3_VOICES = [
+    ['English (US)', 'en', [['Sheila', 'voice_478'], ['Margaret', 'voice_447'], ['Rob', 'voice_485'], ['James', 'voice_3150']]],
+    ['English (UK)', 'en', [['Mary', 'voice_1787'], ['Sky', 'voice_1786'], ['David', 'voice_1788'], ['Harriet', 'voice_590'],
+                            ['Fred', 'voice_591'], ['Hugo', 'voice_3149'], ['Howard', 'voice_3147']]],
+    ['French', 'fr', [['Marie', 'voice_592'], ['Manon', 'voice_3137'], ['Lea', 'voice_589'], ['Camille', 'voice_3141']]],
+    ['Spanish', 'es', [['Elena', 'voice_483']]],
+    ['German', 'de', [['Heidi', 'voice_481']]],
+    ['Italian', 'it', [['Lorenzo', 'voice_482']]],
+    ['Portuguese', 'pt', [['Gabriela', 'voice_480']]],
+    ['Dutch', 'nl', [['Lotte', 'voice_3145']]],
+    ['Catalan', 'ca', [['Jordi', 'voice_3143']]],
+    ['Arabic', 'ar', [['Maryam', 'voice_479']]],
+    ['Hindi', 'hi', [['Ananya', 'voice_3139'], ['Himanshu', 'voice_3153']]],
+    ['Russian', 'ru', [['Tatiana', 'voice_3132']]],
+    ['Ukrainian', 'uk', [['Taras', 'voice_3140']]],
+    ['Polish', 'pl', [['Leon', 'voice_3154']]],
+    ['Romanian', 'ro', [['Irina', 'voice_3155']]],
+    ['Hungarian', 'hu', [['Olivia', 'voice_3146']]],
+    ['Norwegian', 'no', [['Lars', 'voice_3134']]],
+    ['Turkish', 'tr', [['Oran', 'voice_3138']]],
+    ['Vietnamese', 'vi', [['Huong', 'voice_3144']]],
+    ['Chinese', 'zh', [['Mei', 'voice_3142']]],
+    ['Japanese', 'ja', [['Haruto', 'voice_3133']]],
+    ['Korean', 'ko', [['Sung', 'voice_3136'], ['Jin', 'voice_3135']]],
+  ];
+  // Voxtral 2 presets (still accepted by Voxtral 3): one ID per inflection.
+  const V2_VOICES = [
+    ['Paul', 'English (US)', 'en', 'en_paul_', ['neutral', 'happy', 'cheerful', 'excited', 'confident', 'sad', 'frustrated', 'angry']],
+    ['Jane', 'English (UK)', 'en', 'gb_jane_', ['neutral', 'confident', 'curious', 'confused', 'sarcasm', 'sad', 'shameful', 'jealousy', 'frustrated']],
+    ['Oliver', 'English (UK)', 'en', 'gb_oliver_', ['neutral', 'cheerful', 'excited', 'confident', 'curious', 'sad', 'angry']],
+    ['Marie', 'French', 'fr', 'fr_marie_', ['neutral', 'happy', 'excited', 'curious', 'sad', 'angry']],
+  ];
+  const EMOTIONS = ['amused', 'angry', 'anxious', 'apologetic', 'appreciative', 'assertive', 'bored', 'calm', 'confident',
+    'confused', 'critical', 'curious', 'determined', 'disappointed', 'disgusted', 'excited', 'frustrated', 'grateful', 'happy',
+    'hopeful', 'playful', 'proud', 'reflective', 'resigned', 'sad', 'sarcastic', 'skeptical', 'somber', 'surprised', 'tense',
+    'tired', 'urgent', 'warm', 'wistful'];
+  const PACES = ['very-slow', 'slow', 'moderate', 'fast', 'very-fast'];
+  const SAMPLES = {
+    en: 'Hello! This is the speech API, turning text into audio. Where can I buy a train ticket?',
+    fr: 'Bonjour ! Où puis-je acheter un billet de train ?',
+    es: '¡Hola! ¿Dónde puedo comprar un billete de tren?',
+    de: 'Hallo! Wo kann ich eine Fahrkarte kaufen?',
+    it: 'Ciao! Dove posso comprare un biglietto del treno?',
+    pt: 'Olá! Onde posso comprar um bilhete de trem?',
+    nl: 'Hallo! Waar kan ik een treinkaartje kopen?',
+    ca: 'Hola! On puc comprar un bitllet de tren?',
+    ar: 'مرحبا! أين يمكنني شراء تذكرة قطار؟',
+    hi: 'नमस्ते! मैं ट्रेन का टिकट कहाँ से खरीद सकता हूँ?',
+    ru: 'Здравствуйте! Где я могу купить билет на поезд?',
+    uk: 'Привіт! Де я можу купити квиток на потяг?',
+    pl: 'Cześć! Gdzie mogę kupić bilet na pociąg?',
+    ro: 'Bună! De unde pot cumpăra un bilet de tren?',
+    hu: 'Szia! Hol vehetek vonatjegyet?',
+    no: 'Hei! Hvor kan jeg kjøpe en togbillett?',
+    tr: 'Merhaba! Tren biletini nereden alabilirim?',
+    vi: 'Xin chào! Tôi có thể mua vé tàu ở đâu?',
+    zh: '你好！我在哪里可以买火车票？',
+    ja: 'こんにちは！電車の切符はどこで買えますか？',
+    ko: '안녕하세요! 기차표는 어디에서 살 수 있나요?',
+  };
+
+  const VOICE_INFO = {};   // id -> { gen: 2|3, lang, label }
+  const voiceSel = $('#ttsVoiceSel');
+  (function buildVoiceList() {
+    const opt = (value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; return o; };
+    voiceSel.appendChild(opt('', 'Server default'));
+    for (const [group, lang, voices] of V3_VOICES) {
+      const g = document.createElement('optgroup'); g.label = 'Voxtral 3 · ' + group;
+      for (const [name, id] of voices) { g.appendChild(opt(id, name + ' (' + id + ')')); VOICE_INFO[id] = { gen: 3, lang, label: name + ', ' + group }; }
+      voiceSel.appendChild(g);
+    }
+    for (const [name, group, lang, prefix, moods] of V2_VOICES) {
+      const g = document.createElement('optgroup'); g.label = 'Voxtral 2 preset · ' + name + ', ' + group;
+      for (const m of moods) { const id = prefix + m; g.appendChild(opt(id, name + ' · ' + m + ' (' + id + ')')); VOICE_INFO[id] = { gen: 2, lang, label: name + ' (' + m + '), ' + group }; }
+      voiceSel.appendChild(g);
+    }
+    voiceSel.appendChild(opt('__custom', 'Custom voice ID...'));
+
+    const emo = $('#ttsEmotion'), pace = $('#ttsPace');
+    emo.appendChild(opt('', 'None'));
+    EMOTIONS.forEach((e) => emo.appendChild(opt(e, e)));
+    pace.appendChild(opt('', 'Normal'));
+    PACES.forEach((p) => pace.appendChild(opt(p, p.replace('-', ' '))));
+  })();
+
+  // restore saved choices
+  (function restoreVoice() {
+    const saved = store.get('ttsVoice', '');
+    if (!saved) voiceSel.value = '';
+    else if (VOICE_INFO[saved]) voiceSel.value = saved;
+    else { voiceSel.value = '__custom'; $('#ttsVoice').value = saved; }
+    $('#ttsEmotion').value = store.get('ttsEmotion', '');
+    $('#ttsPace').value = store.get('ttsPace', '');
+  })();
+
+  function currentVoice() {
+    return voiceSel.value === '__custom' ? $('#ttsVoice').value.trim() : voiceSel.value;
+  }
+
+  function refreshVoiceUi() {
+    const custom = voiceSel.value === '__custom';
+    $('#ttsVoice').style.display = custom ? 'block' : 'none';
+    const info = VOICE_INFO[voiceSel.value];
+    const tagsOff = info && info.gen === 2;   // Voxtral 2 presets carry the inflection in the voice ID
+    $('#ttsEmotion').disabled = tagsOff;
+    $('#ttsPace').disabled = tagsOff;
+    $('#ttsSample').disabled = !info && !custom && voiceSel.value !== '';
+    let hint;
+    if (!voiceSel.value) hint = 'The server picks the voice. Emotion and pace tags need a Voxtral 3 voice to have an effect.';
+    else if (custom) hint = 'Any voice ID your account can use, including voices you cloned in Mistral AI Studio.';
+    else if (info.gen === 2) hint = info.label + ': the inflection is part of the voice ID, so Emotion and Pace are off.';
+    else hint = info.label + '. Emotion and pace are sent as inline tags at the start of the text (tested in English; expected to work in fr, de, es, it, pt, hi).';
+    $('#ttsVoiceHint').textContent = hint;
+    updateCurls();
+  }
+
+  voiceSel.addEventListener('change', () => {
+    store.set('ttsVoice', currentVoice());
+    refreshVoiceUi();
+    if (voiceSel.value === '__custom') $('#ttsVoice').focus();
+  });
+  $('#ttsVoice').addEventListener('input', () => { store.set('ttsVoice', currentVoice()); updateCurls(); });
+  $('#ttsEmotion').addEventListener('change', () => { store.set('ttsEmotion', $('#ttsEmotion').value); updateCurls(); });
+  $('#ttsPace').addEventListener('change', () => { store.set('ttsPace', $('#ttsPace').value); updateCurls(); });
+  $('#ttsSample').addEventListener('click', () => {
+    const info = VOICE_INFO[voiceSel.value];
+    ttsText.value = SAMPLES[(info && info.lang) || 'en'] || SAMPLES.en;
+    updateCount(); updateCurls(); ttsText.focus();
+  });
+
+  let ttsObjectUrl = null;
+
+  function ttsBody() {
+    const voice = currentVoice();
+    const info = VOICE_INFO[voice];
+    let tags = '';
+    if (!(info && info.gen === 2)) {
+      const e = $('#ttsEmotion').value, p = $('#ttsPace').value;
+      if (e) tags += '[emotion=' + e + ']';
+      if (p) tags += '[pace=' + p + ']';
+    }
+    const text = ttsText.value.trim();
+    const body = { text: text ? tags + text : '', format: ttsFormat.value };
+    if (voice) body.voice = voice;
+    return body;
+  }
+
+  async function speak() {
+    const st = $('#ttsStatus');
+    const bad = needConfig();
+    if (bad) { setStatus(st, bad, 'error'); return; }
+    const body = ttsBody();
+    if (!body.text) { setStatus(st, 'Type some text first.', 'error'); return; }
+
+    const btn = $('#ttsGo');
+    btn.disabled = true; btn.textContent = 'Generating...';
+    setStatus(st, 'Sending ' + body.text.length + ' characters...');
+    const t0 = performance.now();
+    try {
+      const res = await call('POST', '/speech', {
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, audio/mpeg, audio/wav' },
+        body: JSON.stringify(body),
+      }, body.text.length + ' chars, ' + body.format);
+      if (!res.ok) throw await apiError(res);
+      const ctype = (res.headers.get('Content-Type') || '').split(';')[0].trim().toLowerCase();
+      let blob, fmt, how;
+      if (ctype.startsWith('audio/')) {
+        // Raw audio body (spec 1.0.0)
+        blob = await res.blob();
+        fmt = ctype.includes('wav') ? 'wav' : 'mp3';
+        how = 'raw ' + ctype;
+      } else {
+        // JSON with base64 audio (spec 1.1.0); a bare base64 text body is accepted too
+        const raw = await res.text();
+        let b64 = raw, mime = null;
+        try {
+          const j = JSON.parse(raw);
+          b64 = j.audioBase64 || j.audio_data || j.audio || '';
+          mime = j.mimeType || null;
+          fmt = j.format || null;
+        } catch { /* not JSON: treat the whole body as base64 */ }
+        const bytes = base64ToBytes(b64);
+        fmt = fmt || (mime && mime.includes('wav') ? 'wav' : sniffFormat(bytes));
+        mime = mime || (fmt === 'wav' ? 'audio/wav' : 'audio/mpeg');
+        blob = new Blob([bytes], { type: mime });
+        how = 'base64 ' + fmtBytes(b64.length) + ' → ' + mime;
+        const sniff = sniffFormat(bytes);
+        if (!sniff) throw new Error('Decoded ' + bytes.length + ' bytes, but they are not MP3 or WAV (first bytes: ' +
+          Array.from(bytes.slice(0, 8)).map((b) => b.toString(16).padStart(2, '0')).join(' ') + ').');
+      }
+      if (!blob.size) throw new Error('The server returned no audio.');
+      const ms = Math.round(performance.now() - t0);
+
+      if (ttsObjectUrl) URL.revokeObjectURL(ttsObjectUrl);
+      ttsObjectUrl = URL.createObjectURL(blob);
+      const audio = $('#ttsAudio');
+      audio.src = ttsObjectUrl; audio.style.display = 'block';
+      const dl = $('#ttsDownload');
+      dl.href = ttsObjectUrl; dl.download = 'speech-' + Date.now() + '.' + fmt; dl.style.display = 'inline-block';
+      setStatus(st, 'Got ' + fmtBytes(blob.size) + ' of ' + fmt.toUpperCase() + ' (' + how + ') in ' + ms + ' ms.', 'ok');
+      audio.play().catch(() => {});
+    } catch (err) {
+      setStatus(st, networkMessage(err), 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Speak';
+    }
+  }
+  $('#ttsGo').addEventListener('click', speak);
+
+  function base64ToBytes(b64) {
+    const clean = String(b64 || '').replace(/^data:[^,]*,/, '').replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+    if (!clean) throw new Error('The response has no audio (empty audioBase64).');
+    let bin;
+    try { bin = atob(clean + '==='.slice((clean.length + 3) % 4)); }
+    catch { throw new Error('audioBase64 is not valid base64 (starts with "' + clean.slice(0, 20) + '").'); }
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function sniffFormat(b) {
+    if (b.length > 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46) return 'wav';   // RIFF
+    if (b.length > 3 && b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33) return 'mp3';                      // ID3
+    if (b.length > 2 && b[0] === 0xff && (b[1] & 0xe0) === 0xe0) return 'mp3';                              // MPEG frame sync
+    return null;
+  }
+
+  // ---------- SPEECH TO TEXT: current clip ----------
+  let clip = null;          // { blob, name, type, duration }
+  let clipObjectUrl = null;
+  $('#sttLang').value = store.get('sttLang', '');
+  if ($('#sttLang').selectedIndex < 0) $('#sttLang').value = '';
+  $('#sttLang').addEventListener('change', () => { store.set('sttLang', $('#sttLang').value.trim().toLowerCase()); updateCurls(); });
+
+  function setClip(blob, name, type, duration) {
+    clip = { blob, name, type, duration };
+    if (clipObjectUrl) URL.revokeObjectURL(clipObjectUrl);
+    clipObjectUrl = URL.createObjectURL(blob);
+    $('#clipAudio').src = clipObjectUrl;
+    $('#clipName').textContent = name;
+    $('#clipMeta').textContent = type + ' · ' + fmtBytes(blob.size) + (duration ? ' · ' + duration.toFixed(1) + ' s' : '');
+    $('#clip').classList.add('show');
+    $('#sttGo').disabled = false;
+    if (blob.size > 25 * 1048576) setStatus($('#sttStatus'), 'This file is over 25 MB; the server will probably reject it (413).', 'error');
+    else setStatus($('#sttStatus'), '');
+    updateCurls();
+    if (!duration) {
+      const a = $('#clipAudio');
+      a.onloadedmetadata = () => {
+        if (isFinite(a.duration) && clip && clip.blob === blob) {
+          clip.duration = a.duration;
+          $('#clipMeta').textContent = type + ' · ' + fmtBytes(blob.size) + ' · ' + a.duration.toFixed(1) + ' s';
+        }
+      };
+    }
+  }
+
+  function audioTypeOf(file) {
+    const n = file.name.toLowerCase();
+    const t = (file.type || '').toLowerCase();
+    if (n.endsWith('.mp3') || t === 'audio/mpeg' || t === 'audio/mp3') return 'audio/mpeg';
+    if (n.endsWith('.wav') || t === 'audio/wav' || t === 'audio/x-wav' || t === 'audio/wave' || t === 'audio/vnd.wave') return 'audio/wav';
+    return null;
+  }
+
+  function takeFile(file) {
+    if (!file) return;
+    const type = audioTypeOf(file);
+    if (!type) { setStatus($('#sttStatus'), '"' + file.name + '" is not an MP3 or WAV file.', 'error'); return; }
+    setClip(file, file.name, type, null);
+  }
+
+  const drop = $('#drop');
+  const fileInput = $('#fileInput');
+  drop.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => { takeFile(fileInput.files[0]); fileInput.value = ''; });
+  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => takeFile(e.dataTransfer.files[0]));
+
+  // ---------- SPEECH TO TEXT: recorder (WAV, 16 kHz mono) ----------
+  const REC_RATE = 16000, REC_MAX_S = 60;
+  let rec = null;   // { stream, ctx, src, proc, chunks, rate, start, timer }
+
+  async function startRecording() {
+    const st = $('#sttStatus');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatus(st, 'Recording needs https:// or http://localhost (see Settings > Notes).', 'error'); return;
+    }
+    // Create (and resume) the AudioContext inside the click, before any await: Safari and
+    // Chrome keep a context made later "suspended", which records nothing.
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AC();
+    const resumed = ctx.resume().catch(() => {});
+    let stream;
+    try {
+      const micId = $('#micSel').value;
+      stream = await navigator.mediaDevices.getUserMedia({ audio: {
+        channelCount: 1, echoCancellation: true, noiseSuppression: true,
+        ...(micId ? { deviceId: { exact: micId } } : {}),
+      } });
+      listMics();   // names are only available once access is granted
+    } catch (err) {
+      ctx.close().catch(() => {});
+      const why = err.name === 'NotAllowedError' ? 'permission denied (allow the microphone for this site)' :
+                  err.name === 'NotFoundError' ? 'no microphone found' : (err.message || err.name);
+      setStatus(st, 'Microphone not available: ' + why, 'error'); return;
+    }
+    await resumed;
+    if (ctx.state !== 'running') await ctx.resume().catch(() => {});
+    const track = stream.getAudioTracks()[0];
+    const micName = (track && track.label) || 'the default microphone';
+    if (track && track.muted) setStatus(st, 'The microphone "' + micName + '" is muted by the system.', 'error');
+    const src = ctx.createMediaStreamSource(stream);
+    const proc = ctx.createScriptProcessor(4096, 1, 1);
+    const chunks = [];
+    proc.onaudioprocess = (e) => {
+      if (!rec || rec.proc !== proc) return;
+      const d = e.inputBuffer.getChannelData(0);
+      chunks.push(new Float32Array(d));
+      let sum = 0; for (let i = 0; i < d.length; i++) { sum += d[i] * d[i]; const a = Math.abs(d[i]); if (a > rec.peak) rec.peak = a; }
+      const db = 20 * Math.log10(Math.sqrt(sum / d.length) + 1e-8);
+      $('#recLevel').style.width = Math.max(0, Math.min(100, (db + 60) * (100 / 60))) + '%';
+    };
+    src.connect(proc); proc.connect(ctx.destination);
+    rec = { stream, ctx, src, proc, chunks, rate: ctx.sampleRate, start: performance.now(), peak: 0, micName };
+    rec.timer = setInterval(() => {
+      const s = (performance.now() - rec.start) / 1000;
+      $('#recTimer').textContent = fmtTime(s);
+      if (s >= REC_MAX_S) stopRecording();
+    }, 200);
+    const btn = $('#recBtn'); btn.classList.add('recording'); btn.textContent = 'Stop';
+    if (!(track && track.muted)) setStatus(st, 'Recording from "' + micName + '"' + (ctx.state !== 'running' ? ' (audio engine ' + ctx.state + ')' : '') + '... click Stop when you are done.');
+  }
+
+  function stopRecording() {
+    if (!rec) return;
+    const r = rec; rec = null;
+    clearInterval(r.timer);
+    try { r.src.disconnect(); r.proc.disconnect(); } catch {}
+    r.stream.getTracks().forEach((t) => t.stop());
+    r.ctx.close().catch(() => {});
+    $('#recLevel').style.width = '0';
+    const btn = $('#recBtn'); btn.classList.remove('recording'); btn.textContent = 'Record';
+
+    let total = 0; r.chunks.forEach((c) => (total += c.length));
+    if (total === 0) {
+      setStatus($('#sttStatus'), 'Nothing was recorded: the browser\'s audio engine never started. Click Record again; in Safari, try Chrome.', 'error'); return;
+    }
+    if (total < r.rate * 0.3) { setStatus($('#sttStatus'), 'Recording too short.', 'error'); return; }
+    const all = new Float32Array(total);
+    let off = 0; r.chunks.forEach((c) => { all.set(c, off); off += c.length; });
+    const pcm = downsample(all, r.rate, REC_RATE);
+    const wav = encodeWav(pcm, REC_RATE);
+    const stamp = new Date().toTimeString().slice(0, 8).replace(/:/g, '');
+    setClip(wav, 'recording-' + stamp + '.wav', 'audio/wav', pcm.length / REC_RATE);
+    const peakDb = 20 * Math.log10(r.peak + 1e-9);
+    $('#clipMeta').textContent += ' · peak ' + (r.peak > 0 ? peakDb.toFixed(0) + ' dBFS' : 'silence') + ' · ' + r.micName;
+    if (r.peak < 0.001) {
+      setStatus($('#sttStatus'), 'The recording is silent: "' + r.micName + '" sent only zeros. ' +
+        (VIRTUAL_MIC.test(r.micName) ? 'That is a virtual device: pick your real microphone in Settings > Microphone.'
+          : 'Try another microphone in Settings > Microphone, and check System Settings > Privacy & Security > Microphone on the Mac.'), 'error');
+    } else if (r.peak < 0.03) {
+      setStatus($('#sttStatus'), 'Recorded, but very quietly (peak ' + peakDb.toFixed(0) + ' dBFS). Speak closer or raise the input level; transcription may still work.', 'error');
+    } else {
+      setStatus($('#sttStatus'), 'Recorded. Play it back below, then press Transcribe.', 'ok');
+    }
+  }
+
+  function downsample(buf, inRate, outRate) {
+    if (outRate >= inRate) return buf;
+    const ratio = inRate / outRate;
+    const n = Math.floor(buf.length / ratio);
+    const out = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const a = Math.floor(i * ratio), b = Math.min(buf.length, Math.floor((i + 1) * ratio));
+      let s = 0; for (let j = a; j < b; j++) s += buf[j];
+      out[i] = s / Math.max(1, b - a);
+    }
+    return out;
+  }
+
+  function encodeWav(samples, rate) {
+    const buf = new ArrayBuffer(44 + samples.length * 2);
+    const v = new DataView(buf);
+    const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); str(8, 'WAVE');
+    str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    str(36, 'data'); v.setUint32(40, samples.length * 2, true);
+    for (let i = 0, o = 44; i < samples.length; i++, o += 2) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+
+  $('#recBtn').addEventListener('click', () => (rec ? stopRecording() : startRecording()));
+
+  // ---------- microphone picker (Settings > Microphone) ----------
+  const VIRTUAL_MIC = /virtual|blackhole|loopback|soundflower|teams|zoom|webex|obs|citrix|krisp|vb-audio|aggregate|multi-output|meta quest/i;
+
+  async function listMics(askFirst) {
+    const sel = $('#micSel');
+    const st = $('#micStatus');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    try {
+      if (askFirst) {   // device names stay hidden until the page has had microphone access once
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+        s.getTracks().forEach((t) => t.stop());
+      }
+      const all = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audioinput');
+      const def = all.find((d) => d.deviceId === 'default');
+      const defName = def && def.label ? def.label.replace(/^Default\s*-\s*/i, '') : '';
+      const mics = all.filter((d) => d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications');
+      const named = mics.some((d) => d.label);
+
+      let want = store.get('micId', null);
+      let autoPicked = null;
+      // First time, if the browser's default is a virtual device, pick the first real mic instead.
+      if (want === null && named && defName && VIRTUAL_MIC.test(defName)) {
+        const real = mics.find((d) => d.label && !VIRTUAL_MIC.test(d.label));
+        if (real) { want = real.deviceId; autoPicked = real.label; store.set('micId', want); }
+      }
+      sel.innerHTML = '';
+      const add = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
+      add('', 'Browser default' + (defName ? ' (' + defName + ')' : ''));
+      mics.forEach((d, i) => add(d.deviceId, (d.label || 'Microphone ' + (i + 1)) + (d.label && VIRTUAL_MIC.test(d.label) ? '  [virtual]' : '')));
+      sel.value = [...sel.options].some((o) => o.value === (want || '')) ? (want || '') : '';
+      updateMicNow();
+
+      if (autoPicked) setStatus(st, 'The browser\'s default mic is "' + defName + '" (a virtual device), so "' + autoPicked + '" was selected instead.', 'ok');
+      else if (!named) setStatus(st, 'Press "List mics" to see the microphone names (the browser asks for access first).');
+      else if (askFirst) setStatus(st, mics.length + ' microphone(s) found.' +
+        (!sel.value && VIRTUAL_MIC.test(defName) ? ' The browser default is virtual: pick your real microphone.' : ''), !sel.value && VIRTUAL_MIC.test(defName) ? 'error' : 'ok');
+    } catch (err) {
+      if (askFirst) setStatus(st, 'Could not list microphones: ' + (err.message || err.name), 'error');
+    }
+  }
+
+  function updateMicNow() {
+    const sel = $('#micSel');
+    const o = sel.options[sel.selectedIndex];
+    const name = o ? o.textContent : 'Browser default';
+    const el = $('#micNow');
+    el.textContent = name;
+    el.style.color = /virtual/i.test(name) || VIRTUAL_MIC.test(name) ? 'var(--danger)' : '';
+  }
+
+  async function testMic() {
+    const st = $('#micStatus'), btn = $('#micTest'), bar = $('#micTestLevel');
+    const id = $('#micSel').value;
+    btn.disabled = true;
+    let stream, ctx;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC(); const resumed = ctx.resume().catch(() => {});
+      stream = await navigator.mediaDevices.getUserMedia({ audio: id ? { deviceId: { exact: id } } : true });
+      await resumed;
+      const name = (stream.getAudioTracks()[0] || {}).label || 'microphone';
+      const an = ctx.createAnalyser(); an.fftSize = 2048;
+      ctx.createMediaStreamSource(stream).connect(an);
+      const buf = new Float32Array(an.fftSize);
+      let peak = 0; const t0 = performance.now();
+      setStatus(st, 'Listening to "' + name + '"... say something.');
+      await new Promise((done) => {
+        (function tick() {
+          an.getFloatTimeDomainData(buf);
+          let sum = 0; for (const v of buf) { sum += v * v; if (Math.abs(v) > peak) peak = Math.abs(v); }
+          const db = 20 * Math.log10(Math.sqrt(sum / buf.length) + 1e-8);
+          bar.style.width = Math.max(0, Math.min(100, (db + 60) * (100 / 60))) + '%';
+          if (performance.now() - t0 < 3000) requestAnimationFrame(tick); else done();
+        })();
+      });
+      const pdb = 20 * Math.log10(peak + 1e-9);
+      if (peak < 0.001) setStatus(st, '"' + name + '" is silent. Pick another microphone.', 'error');
+      else if (peak < 0.03) setStatus(st, '"' + name + '" works but is quiet (peak ' + pdb.toFixed(0) + ' dBFS).', 'error');
+      else setStatus(st, '"' + name + '" works (peak ' + pdb.toFixed(0) + ' dBFS).', 'ok');
+      listMics();   // names may be available now
+    } catch (err) {
+      setStatus(st, 'Microphone test failed: ' + (err.message || err.name), 'error');
+    } finally {
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      if (ctx) ctx.close().catch(() => {});
+      bar.style.width = '0'; btn.disabled = false;
+    }
+  }
+
+  $('#micSel').addEventListener('change', () => { store.set('micId', $('#micSel').value); updateMicNow(); setStatus($('#micStatus'), ''); });
+  $('#micRefresh').addEventListener('click', () => listMics(true));
+  $('#micTest').addEventListener('click', testMic);
+  $('#micChange').addEventListener('click', (e) => { e.preventDefault(); document.querySelector('nav.tabs button[data-tab="settings"]').click(); $('#micSel').focus(); });
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', () => listMics());
+  listMics();
+
+  // ---------- SPEECH TO TEXT: transcribe ----------
+  async function transcribe() {
+    const st = $('#sttStatus');
+    const bad = needConfig();
+    if (bad) { setStatus(st, bad, 'error'); return; }
+    if (!clip) { setStatus(st, 'Record or choose an audio file first.', 'error'); return; }
+
+    const lang = $('#sttLang').value.trim().toLowerCase();
+    if (lang && !/^[a-z]{2}$/.test(lang)) { setStatus(st, 'Language must be a 2-letter code like en or es, or empty.', 'error'); return; }
+
+    const btn = $('#sttGo');
+    btn.disabled = true; btn.textContent = 'Transcribing...';
+    setStatus(st, 'Uploading ' + fmtBytes(clip.blob.size) + ' as multipart/form-data)...');
+    const t0 = performance.now();
+    try {
+      let res;
+      const detail = clip.name + ', ' + fmtBytes(clip.blob.size);
+      // multipart/form-data with one "file" part; the language goes in the query string.
+      const q = lang ? '?language=' + encodeURIComponent(lang) : '';
+      const fd = new FormData();
+      fd.append('file', new File([clip.blob], clip.name, { type: clip.type }));
+      res = await call('POST', '/transcribe' + q, { body: fd }, detail);
+      if (!res.ok) throw await apiError(res);
+      const j = await res.json();
+      const ms = Math.round(performance.now() - t0);
+      const out = $('#sttResult');
+      const text = (j.text || '').trim();
+      out.textContent = text || '(no speech found)';
+      out.classList.toggle('empty', !text);
+      $('#sttCopy').disabled = !text;
+      const bits = [];
+      if (j.language) bits.push('language ' + j.language);
+      if (j.durationSeconds != null) bits.push(Number(j.durationSeconds).toFixed(1) + ' s audio');
+      if (j.model) bits.push(j.model);
+      if (j.processingMs != null) bits.push('server ' + j.processingMs + ' ms');
+      bits.push('round trip ' + ms + ' ms');
+      $('#sttMeta').textContent = bits.join(' · ');
+      setStatus(st, 'Done.', 'ok');
+    } catch (err) {
+      setStatus(st, networkMessage(err), 'error');
+    } finally {
+      btn.disabled = !clip; btn.textContent = 'Transcribe';
+    }
+  }
+  $('#sttGo').addEventListener('click', transcribe);
+
+  $('#sttCopy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('#sttResult').textContent); setStatus($('#sttStatus'), 'Copied.', 'ok'); }
+    catch { setStatus($('#sttStatus'), 'Copy failed: select the text and copy it by hand.', 'error'); }
+  });
+
+  // ---------- curl equivalents (key shown as $API_KEY) ----------
+  function updateCurls() {
+    const base = settings.baseUrl.trim().replace(/\/+$/, '') || 'http://localhost:8080';
+    const body = ttsBody();
+    const ext = body.format === 'wav' ? 'wav' : 'mp3';
+    $('#ttsCurl').textContent =
+      'curl -X POST ' + shq(base + '/speech') + ' \\\n' +
+      '  -H "x-api-key: $API_KEY" \\\n' +
+      '  -H "Content-Type: application/json" \\\n' +
+      '  -d ' + shq(JSON.stringify(body.text ? body : { text: 'Hello', format: body.format })) + ' \\\n' +
+      '  | jq -r .audioBase64 | base64 --decode > speech.' + ext;
+
+    const lang = $('#sttLang').value.trim().toLowerCase();
+    const name = clip ? clip.name : 'audio.mp3';
+    const type = clip ? clip.type : 'audio/mpeg';
+    $('#sttCurl').textContent =
+      'curl -X POST ' + shq(base + '/transcribe' + (lang ? '?language=' + lang : '')) + ' \\\n' +
+      '  -H "x-api-key: $API_KEY" \\\n' +
+      '  -F ' + shq('file=@' + name + ';type=' + type);
+  }
+
+  $('#logClear').addEventListener('click', () => {
+    log.length = 0;
+    $('#logBody').innerHTML = '<tr><td colspan="5" class="hint">No requests yet.</td></tr>';
+  });
+
+  refreshVoiceUi();   // also calls updateCurls()
+  // Open the tab used last time (Text to Speech the first time). Settings only when no URL is saved.
+  const openTab = (name) => {
+    const b = document.querySelector('nav.tabs button[data-tab="' + name + '"]');
+    (b || document.querySelector('nav.tabs button[data-tab="tts"]')).click();
+  };
+  if (needConfig() || store.get('baseUrl', null) === null) {
+    openTab('settings');
+    setConn(false, 'Not configured');
+  } else {
+    openTab(store.get('tab', 'tts'));
+    testConnection();
+  }
+})();
+</script>
+</body>
+</html>
